@@ -2,6 +2,8 @@
 # by Darren Irwin, beginning in early July 2021
 # Adapted from the R version of HZAM_Sym
 
+# Here is a small test addition (to see if GitHub works)
+
 # Need to make sure these packages are added:
 # Distributions
 # to add, type "]" to get the "pkg>" prompt, then type e.g. "add Distributions" 
