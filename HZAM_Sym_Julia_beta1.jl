@@ -3,6 +3,7 @@
 # Adapted from the R version of HZAM_Sym
 
 # Here is a small test addition (to see if GitHub works)
+# A second small test line
 
 # Need to make sure these packages are added:
 # Distributions
