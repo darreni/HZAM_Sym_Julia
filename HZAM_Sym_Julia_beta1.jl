@@ -39,9 +39,9 @@ function calc_traits_additive(genotypes)
     return traits
 end
 
-set_name = "JL1"
+set_name = "JLtest"
 
-replications = 1 # collect(3)  # or just 1 for 1 replicate, or something like (2:5) to add replicates after 1 is done
+replications = 1:3 # collect(3)  # or just 1 for 1 replicate, or something like (2:5) to add replicates after 1 is done
 
 # the set of hybrid fitnesses (w_hyb) values that will be run
 w_hyb_set = [1, 0.98, 0.95, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0] # for just one run, just put one number in this and next line
@@ -75,7 +75,7 @@ competAbility_useResourceB_species0 = 1 - competAbility_useResourceA_species0
 competAbility_useResourceA_species1 = (1 - ecolDiff)/2   # equals 0 when ecolDiff = 1
 competAbility_useResourceB_species1 = 1 - competAbility_useResourceA_species1
 
-max_generations = 1000
+max_generations = 25
 
 # set up array of strings to record outcomes
 outcome_array = Array{String, 3}(undef, length(w_hyb_set), length(S_AM_set), length(replications))
@@ -90,8 +90,7 @@ for k in 1:length(replications)  # loop through the replicate runs
         Threads.@threads for j in 1:length(S_AM_set) 
             w_hyb = w_hyb_set[i]
             S_AM = S_AM_set[j]
-            println("w_hyb = ",w_hyb)
-            println("S_AM = ",S_AM)
+            println("w_hyb = ",w_hyb,"; S_AM = ",S_AM)
 
             run_name = string("HZAM_animation_run",run_set_name,"_ecolDiff",ecolDiff,"_growthrate",intrinsic_R,"_K",K_total,"_TL",trait_loci,"_gen",max_generations,"_Whyb",w_hyb,"_SAM",S_AM)
             
@@ -284,7 +283,7 @@ for k in 1:length(replications)  # loop through the replicate runs
                 HI_neutral_all_inds = [calc_traits_additive(genotypes_F[:,neutral_loci_cols,:]); calc_traits_additive(genotypes_M[:,neutral_loci_cols,:])]
                 species0_proportion_NL = sum(HI_neutral_all_inds .== 0) / length(HI_neutral_all_inds)
                 species1_proportion_NL = sum(HI_neutral_all_inds .== 1) / length(HI_neutral_all_inds) 
-                @save string("HZAM_Sym_results/simulation_data.",run_name,".jld2") outcome traits_all_inds species0_proportion species1_proportion HI_neutral_all_inds species0_proportion_NL species1_proportion_NL 
+                @save string("HZAM_Sym_Julia_results_GitIgnore/simulation_data.",run_name,".jld2") outcome traits_all_inds species0_proportion species1_proportion HI_neutral_all_inds species0_proportion_NL species1_proportion_NL 
             end
             println(run_name, "  outcome was: ", outcome)
             outcome_array[i,j,k] = outcome
@@ -295,6 +294,55 @@ end # of replicate loop
 outcome_array
 
 for i in 1:size(outcome_array, 3)
-    filename = string("HZAM_Sym_results/outcomeArray_set",set_name,"_ecolDiff",ecolDiff,"_growthrate",intrinsic_R,"_K",K_total,"_TL",trait_loci,"_gen",max_generations,"_rep",replications[i])
+    filename = string("HZAM_Sym_Julia_results_GitIgnore/outcomeArray_set",set_name,"_ecolDiff",ecolDiff,"_growthrate",intrinsic_R,"_K",K_total,"_TL",trait_loci,"_gen",max_generations,"_rep",replications[i])
     CSV.write(filename, Tables.table(outcome_array[:,:,i]), writeheader=false)
 end
+
+
+#### plot results
+using Plots; 
+#plotlyjs() # if not there, go to package mode with "]" and type "add PlotlyJS"
+gr()
+using CategoricalArrays
+using Colors, ColorSchemes
+
+# test example plot:
+plot(rand(100, 4), layout = 4)
+
+# summarize outcomes from multiple reps, for each particular parameter combination
+cat_outcome_array = compress(CategoricalArray(outcome_array))
+levels!(cat_outcome_array, ["extinction", "blended", "one_species", "two_species"]) 
+num_outcome_types = length(levels(cat_outcome_array))
+typeof(cat_outcome_array)
+
+outcome_counts = Array{Int16, 2}(undef, num_outcome_types, (size(cat_outcome_array, 1)*size(cat_outcome_array, 2) )) 
+for i in 1:size(cat_outcome_array, 1) 
+    for j in 1:size(cat_outcome_array, 2) 
+        for outcome_num in 1:num_outcome_types
+            #count_of_this_outcome = sum(cat_outcome_array[i,j,:] .== levels(cat_outcome_array)[outcome_num])
+            #println("i=", i, "; j=", j, "; count_of_this_outcome=", count_of_this_outcome) 
+            #outcome_counts[outcome_num, i*j] = count_of_this_outcome
+            outcome_counts[outcome_num, j + (i-1)*size(cat_outcome_array, 2)] = sum(cat_outcome_array[i,j,:] .== levels(cat_outcome_array)[outcome_num])
+            #println(j + (i-1)*size(cat_outcome_array, 2)) 
+        end
+    end
+end
+
+
+import ColorSchemes.plasma
+
+# colorBlindBlackPlasma41 = cgrad(:plasma, 40, categorical = true)
+# colors = [:black, colorBlindBlackPlasma41] 
+
+colors_of_outcomes = [RGB(0,0,0), plasma[0.525], plasma[0.2], plasma[0.9]]
+print(color_of_outcomes)
+
+pie(outcome_counts, layout = grid(size(cat_outcome_array, 1), size(outcome_array, 2)), legend = false, palette = colors_of_outcomes)
+plot!(size=(800,1300))
+annotate!(100, 100, text("mytext", :red, :right, 3))
+savefig("test4.pdf")
+
+
+
+
+

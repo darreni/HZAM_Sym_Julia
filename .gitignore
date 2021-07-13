@@ -28,3 +28,6 @@ HZAM_Sym_Julia_results_GitIgnore/
 
 # ignore .DS_Store
 .DS_Store
+
+# ignore graphics files with these endings:
+*.pdf
