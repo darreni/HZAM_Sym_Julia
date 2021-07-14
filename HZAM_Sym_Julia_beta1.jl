@@ -39,21 +39,33 @@ function calc_traits_additive(genotypes)
     return traits
 end
 
-set_name = "JLtest"
+set_name = "JL_A"
 
-replications = 1:3 # collect(3)  # or just 1 for 1 replicate, or something like (2:5) to add replicates after 1 is done
+replications = 1:10 # collect(3)  # or just 1 for 1 replicate, or something like (2:5) to add replicates after 1 is done
+
+save_outcomes = true  # whether to save the whole outcome array
+save_each_sim = false  # whether to save detailed data for each simulation
 
 # the set of hybrid fitnesses (w_hyb) values that will be run
 w_hyb_set = [1, 0.98, 0.95, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0] # for just one run, just put one number in this and next line
 # the set of assortative mating strengths (S_AM) that will be run
 S_AM_set = [1, 3, 10, 30, 100, 300, 1000, Inf]  # ratio of: probably of accepting homospecific vs. prob of accepting heterospecific
 
-trait_loci = 3  # these loci determine the mating trait and the HI for low hybrid fitness
-neutral_loci = 3   # number of neutral loci (used for neutral measure of hybrid index; not used in the HZAM-sym paper)
-total_loci = trait_loci + neutral_loci
-trait_loci_cols = 1:trait_loci  # the column index range for loci determining the trait
-neutral_loci_cols = (trait_loci+1 : trait_loci+neutral_loci) 
+total_loci = 6  # this is the total number of loci, regardless of their role (with indices 1:total_loci, referred to below)
+# specify indices (columns) of four types of functional loci (can be the same). At least one should begin with index 1
+female_mating_trait_loci = 1:3  # indices of the loci that determine the female mating trait
+male_mating_trait_loci = 1:3  # indices of the loci that determine the male mating trait
+competition_trait_loci = 1:3  # indices of the loci that determine the ecological trait (used in fitness related to resource use)
+hybrid_survival_loci = 1:3  # indices of the loci that determine survival probability of offspring to adulthood (can be viewed as incompatibilities and/or fitness valley based on ecology)
+# specify indices (columns) of neutral loci (which have no effect on anything, just along for the ride)
+neutral_loci = 4:6  # indices of neutral loci (used for neutral measure of hybrid index; not used in the HZAM-sym paper)
 
+total_functional_loci = max(maximum(female_mating_trait_loci), maximum(male_mating_trait_loci), maximum(competition_trait_loci), maximum(hybrid_survival_loci))
+functional_loci_range = 1:total_functional_loci
+num_neutral_loci = length(Vector(neutral_loci))
+if total_functional_loci + num_neutral_loci ≠ total_loci
+    println("#### WARNING: Please examine your loci numbers and indices, as they don't all match up ####")
+end 
 
 per_reject_cost = 0 # fitness loss of female per male rejected (due to search time, etc.)
 
@@ -75,7 +87,7 @@ competAbility_useResourceB_species0 = 1 - competAbility_useResourceA_species0
 competAbility_useResourceA_species1 = (1 - ecolDiff)/2   # equals 0 when ecolDiff = 1
 competAbility_useResourceB_species1 = 1 - competAbility_useResourceA_species1
 
-max_generations = 25
+max_generations = 1000
 
 # set up array of strings to record outcomes
 outcome_array = Array{String, 3}(undef, length(w_hyb_set), length(S_AM_set), length(replications))
@@ -92,7 +104,7 @@ for k in 1:length(replications)  # loop through the replicate runs
             S_AM = S_AM_set[j]
             println("w_hyb = ",w_hyb,"; S_AM = ",S_AM)
 
-            run_name = string("HZAM_animation_run",run_set_name,"_ecolDiff",ecolDiff,"_growthrate",intrinsic_R,"_K",K_total,"_TL",trait_loci,"_gen",max_generations,"_Whyb",w_hyb,"_SAM",S_AM)
+            run_name = string("HZAM_animation_run",run_set_name,"_ecolDiff",ecolDiff,"_growthrate",intrinsic_R,"_K",K_total,"_FL",total_functional_loci,"_NL",num_neutral_loci,"_gen",max_generations,"_Whyb",w_hyb,"_SAM",S_AM)
             
             # convert S_AM to pref_ratio (for use in math below)
             if S_AM == 1
@@ -113,7 +125,7 @@ for k in 1:length(replications)  # loop through the replicate runs
             # columns (D2) are loci, and pages (D3) are individuals
             genotypes_F = generate_genotype_array(pop0_starting_N_half, pop1_starting_N_half, total_loci)
             genotypes_M = generate_genotype_array(pop0_starting_N_half, pop1_starting_N_half, total_loci)
-            # trait loci are first, followed by neutral loci
+            # functional loci are first, followed by neutral loci
 
             for generation in 1:max_generations
                 
@@ -123,15 +135,19 @@ for k in 1:length(replications)  # loop through the replicate runs
                 
                 # println("generation: ", generation, "; individuals: ", N_F + N_M)
 
-                # calculate trait values (T) from genotypes
-                traits_F = calc_traits_additive(genotypes_F[:,1:trait_loci,:])
-                traits_M = calc_traits_additive(genotypes_M[:,1:trait_loci,:])
+                # calculate mating trait values (T) from genotypes
+                female_mating_traits = calc_traits_additive(genotypes_F[:,female_mating_trait_loci,:])
+                male_mating_traits = calc_traits_additive(genotypes_M[:,male_mating_trait_loci,:])
+
+                # calculate ecological competition trait values from genotypes
+                competition_traits_F = calc_traits_additive(genotypes_F[:,competition_trait_loci,:])
+                competition_traits_M = calc_traits_additive(genotypes_M[:,competition_trait_loci,:])
 
                 # calculate individual contributions to resource use, according to linear gradient between use of species 0 and species 1
-                ind_useResourceA_F = competAbility_useResourceA_species1 .+ ((1 .- traits_F) .* (competAbility_useResourceA_species0 - competAbility_useResourceA_species1))
-                ind_useResourceB_F = competAbility_useResourceB_species0 .+ (traits_F .* (competAbility_useResourceB_species1 - competAbility_useResourceB_species0))
-                ind_useResourceA_M = competAbility_useResourceA_species1 .+ ((1 .- traits_M) .* (competAbility_useResourceA_species0 - competAbility_useResourceA_species1))
-                ind_useResourceB_M = competAbility_useResourceB_species0 .+ (traits_M .* (competAbility_useResourceB_species1 - competAbility_useResourceB_species0))
+                ind_useResourceA_F = competAbility_useResourceA_species1 .+ ((1 .- competition_traits_F) .* (competAbility_useResourceA_species0 - competAbility_useResourceA_species1))
+                ind_useResourceB_F = competAbility_useResourceB_species0 .+ (competition_traits_F .* (competAbility_useResourceB_species1 - competAbility_useResourceB_species0))
+                ind_useResourceA_M = competAbility_useResourceA_species1 .+ ((1 .- competition_traits_M) .* (competAbility_useResourceA_species0 - competAbility_useResourceA_species1))
+                ind_useResourceB_M = competAbility_useResourceB_species0 .+ (competition_traits_M .* (competAbility_useResourceB_species1 - competAbility_useResourceB_species0))
                 # sum up the resource use over all individuals
                 total_useResourceA = sum(ind_useResourceA_F) + sum(ind_useResourceA_M)
                 total_useResourceB = sum(ind_useResourceB_F) + sum(ind_useResourceB_M)
@@ -177,7 +193,7 @@ for k in 1:length(replications)  # loop through the replicate runs
                         # compare male trait with female's trait (preference), and determine
                         # whether she accepts; note that match_strength is determined by a
                         # Gaussian, with a maximum of 1 and minimum of zero.
-                        match_strength = (exp(1) ^ ((-(traits_M[focal_male] - traits_F[mother])^2) / (2 * (pref_SD ^2))))
+                        match_strength = (exp(1) ^ ((-(male_mating_traits[focal_male] - female_mating_traits[mother])^2) / (2 * (pref_SD ^2))))
                         if rand() < match_strength
                             # she accepts male, and mates
                             father = focal_male
@@ -238,12 +254,12 @@ for k in 1:length(replications)  # loop through the replicate runs
                 # For later: add in here the option of tracking fitness?
                 
                 # determine survival fitnesses of daughters due to epistasis
-                HI_daughters = calc_traits_additive(genotypes_daughters[:,1:trait_loci,:])
-                epistasis_fitness_daughters = 1 .- (1 - w_hyb) .* (4 .* HI_daughters .* (1 .- HI_daughters)).^beta
+                survival_HI_daughters = calc_traits_additive(genotypes_daughters[:,hybrid_survival_loci,:])
+                epistasis_fitness_daughters = 1 .- (1 - w_hyb) .* (4 .* survival_HI_daughters .* (1 .- survival_HI_daughters)).^beta
                 daughters_survive = epistasis_fitness_daughters .> rand(length(epistasis_fitness_daughters))
                 # same for sons:
-                HI_sons = calc_traits_additive(genotypes_sons[:,1:trait_loci,:])
-                epistasis_fitness_sons = 1 .- (1 - w_hyb) .* (4 .* HI_sons .* (1 .- HI_sons)).^beta
+                survival_HI_sons = calc_traits_additive(genotypes_sons[:,hybrid_survival_loci,:])
+                epistasis_fitness_sons = 1 .- (1 - w_hyb) .* (4 .* survival_HI_sons .* (1 .- survival_HI_sons)).^beta
                 sons_survive = epistasis_fitness_sons .> rand(length(epistasis_fitness_sons))
 
                 # check if either no surviving daughters or no surviving sons, and end the simulation if so
@@ -259,7 +275,7 @@ for k in 1:length(replications)  # loop through the replicate runs
             end # of loop through generations
                 
             # Record results of the one simulation
-            traits_all_inds = []
+            functional_HI_all_inds = []
             species0_proportion = []
             species1_proportion = []
             HI_NL_all_inds = []
@@ -270,9 +286,9 @@ for k in 1:length(replications)  # loop through the replicate runs
                 @save string("simulation_data.",run_name,".jld2") outcome
             else  # no complete extinction
                 # use trait loci to calculate HI of each individual
-                traits_all_inds = [calc_traits_additive(genotypes_F[:,trait_loci_cols,:]); calc_traits_additive(genotypes_M[:,trait_loci_cols,:])]
-                species0_proportion = sum(traits_all_inds .== 0) / length(traits_all_inds)
-                species1_proportion = sum(traits_all_inds .== 1) / length(traits_all_inds)
+                functional_HI_all_inds = [calc_traits_additive(genotypes_F[:,functional_loci_range,:]); calc_traits_additive(genotypes_M[:,functional_loci_range,:])]
+                species0_proportion = sum(functional_HI_all_inds .== 0) / length(functional_HI_all_inds)
+                species1_proportion = sum(functional_HI_all_inds .== 1) / length(functional_HI_all_inds)
                 if species0_proportion >= 0.85 || species1_proportion >= 0.85
                     outcome = "one_species"
                 elseif (species0_proportion + species1_proportion >= 0.85) && (species0_proportion >= 0.15) && (species1_proportion >= 0.15)
@@ -280,10 +296,12 @@ for k in 1:length(replications)  # loop through the replicate runs
                 else
                     outcome = "blended"
                 end
-                HI_neutral_all_inds = [calc_traits_additive(genotypes_F[:,neutral_loci_cols,:]); calc_traits_additive(genotypes_M[:,neutral_loci_cols,:])]
-                species0_proportion_NL = sum(HI_neutral_all_inds .== 0) / length(HI_neutral_all_inds)
-                species1_proportion_NL = sum(HI_neutral_all_inds .== 1) / length(HI_neutral_all_inds) 
-                @save string("HZAM_Sym_Julia_results_GitIgnore/simulation_data.",run_name,".jld2") outcome traits_all_inds species0_proportion species1_proportion HI_neutral_all_inds species0_proportion_NL species1_proportion_NL 
+                HI_NL_all_inds = [calc_traits_additive(genotypes_F[:,neutral_loci,:]); calc_traits_additive(genotypes_M[:,neutral_loci,:])]
+                species0_proportion_NL = sum(HI_NL_all_inds .== 0) / length(HI_NL_all_inds)
+                species1_proportion_NL = sum(HI_NL_all_inds .== 1) / length(HI_NL_all_inds)
+                if save_each_sim
+                    @save string("HZAM_Sym_Julia_results_GitIgnore/simulation_data.",run_name,".jld2") outcome functional_HI_all_inds species0_proportion species1_proportion HI_NL_all_inds species0_proportion_NL species1_proportion_NL
+                end 
             end
             println(run_name, "  outcome was: ", outcome)
             outcome_array[i,j,k] = outcome
@@ -293,10 +311,13 @@ end # of replicate loop
 
 outcome_array
 
-for i in 1:size(outcome_array, 3)
-    filename = string("HZAM_Sym_Julia_results_GitIgnore/outcomeArray_set",set_name,"_ecolDiff",ecolDiff,"_growthrate",intrinsic_R,"_K",K_total,"_TL",trait_loci,"_gen",max_generations,"_rep",replications[i])
-    CSV.write(filename, Tables.table(outcome_array[:,:,i]), writeheader=false)
-end
+if save_outcomes
+    for i in 1:size(outcome_array, 3)
+        filename = string("HZAM_Sym_Julia_results_GitIgnore/outcomeArray_set",set_name,"_ecolDiff",ecolDiff,"_growthrate",intrinsic_R,"_K",K_total,"_FL",total_functional_loci,"_NL",num_neutral_loci,"_gen",max_generations,"_rep",replications[i])
+        CSV.write(filename, Tables.table(outcome_array[:,:,i]), writeheader=false)
+    end 
+end   
+
 
 
 #### plot results
@@ -307,7 +328,7 @@ using CategoricalArrays
 using Colors, ColorSchemes
 
 # test example plot:
-plot(rand(100, 4), layout = 4)
+# plot(rand(100, 4), layout = 4)
 
 # summarize outcomes from multiple reps, for each particular parameter combination
 cat_outcome_array = compress(CategoricalArray(outcome_array))
@@ -335,11 +356,10 @@ import ColorSchemes.plasma
 # colors = [:black, colorBlindBlackPlasma41] 
 
 colors_of_outcomes = [RGB(0,0,0), plasma[0.525], plasma[0.2], plasma[0.9]]
-print(color_of_outcomes)
 
 pie(outcome_counts, layout = grid(size(cat_outcome_array, 1), size(outcome_array, 2)), legend = false, palette = colors_of_outcomes)
 plot!(size=(800,1300))
-annotate!(100, 100, text("mytext", :red, :right, 3))
+#annotate!(100, 100, text("mytext", :red, :right, 3)) #this doesn't work 
 savefig("test4.pdf")
 
 
