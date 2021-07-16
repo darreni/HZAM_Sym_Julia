@@ -39,12 +39,14 @@ function calc_traits_additive(genotypes)
     return traits
 end
 
-function run_HZAM(ecolDiff, intrinsic_R,  max_generations, set_name)
-    # set_name = "TEST" #"JL_A"
+function run_HZAM(set_name::String, ecolDiff, intrinsic_R, replications, 
+    K_total::Int = 1000, max_generations::Int = 1000, 
+    total_loci::Int = 6, female_mating_trait_loci = 1:3, male_mating_trait_loci = 1:3,
+    competition_trait_loci = 1:3, hybrid_survival_loci = 1:3, neutral_loci = 4:6)
+    #replications = 1:3  #1:10 # or just 1 for 1 replicate, or something like (2:5) to add replicates after 1 is done
 
-    replications = 1:3  #1:10 # or just 1 for 1 replicate, or something like (2:5) to add replicates after 1 is done
-
-    save_outcomes = true  # whether to save the whole outcome array
+    save_outcomes_JL = true
+    save_outcomes_csv = true  # whether to save the whole outcome array as csv files (with each rep as separate file)
     save_each_sim = false  # whether to save detailed data for each simulation
 
     # the set of hybrid fitnesses (w_hyb) values that will be run
@@ -52,14 +54,14 @@ function run_HZAM(ecolDiff, intrinsic_R,  max_generations, set_name)
     # the set of assortative mating strengths (S_AM) that will be run
     S_AM_set = [1, 3, 10, 30, 100, 300, 1000, Inf]  # ratio of: probably of accepting homospecific vs. prob of accepting heterospecific
 
-    total_loci = 6  # this is the total number of loci, regardless of their role (with indices 1:total_loci, referred to below)
+    #total_loci = 6  # this is the total number of loci, regardless of their role (with indices 1:total_loci, referred to below)
     # specify indices (columns) of four types of functional loci (can be the same). At least one should begin with index 1
-    female_mating_trait_loci = 1:3  # indices of the loci that determine the female mating trait
-    male_mating_trait_loci = 1:3  # indices of the loci that determine the male mating trait
-    competition_trait_loci = 1:3  # indices of the loci that determine the ecological trait (used in fitness related to resource use)
-    hybrid_survival_loci = 1:3  # indices of the loci that determine survival probability of offspring to adulthood (can be viewed as incompatibilities and/or fitness valley based on ecology)
+    # female_mating_trait_loci = 1:3  # indices of the loci that determine the female mating trait
+    # male_mating_trait_loci = 1:3  # indices of the loci that determine the male mating trait
+    # competition_trait_loci = 1:3  # indices of the loci that determine the ecological trait (used in fitness related to resource use)
+    # hybrid_survival_loci = 1:3  # indices of the loci that determine survival probability of offspring to adulthood (can be viewed as incompatibilities and/or fitness valley based on ecology)
     # specify indices (columns) of neutral loci (which have no effect on anything, just along for the ride)
-    neutral_loci = 4:6  # indices of neutral loci (used for neutral measure of hybrid index; not used in the HZAM-sym paper)
+    # neutral_loci = 4:6  # indices of neutral loci (used for neutral measure of hybrid index; not used in the HZAM-sym paper)
 
     total_functional_loci = max(maximum(female_mating_trait_loci), maximum(male_mating_trait_loci), maximum(competition_trait_loci), maximum(hybrid_survival_loci))
     functional_loci_range = 1:total_functional_loci
@@ -71,9 +73,9 @@ function run_HZAM(ecolDiff, intrinsic_R,  max_generations, set_name)
     per_reject_cost = 0 # fitness loss of female per male rejected (due to search time, etc.)
 
     # intrinsic_R = 1.05  # Intrinsic growth rate, this is the average maximum expected number of offspring per individual, when pop size far below K
-    K_A = 500  # EVEN NUMBER; carrying capacity (on resource alpha) of entire range (for two sexes combined), regardless of species 
-    K_B = 500  # EVEN NUMBER; carrying capacity (on resource beta) of entire range (for two sexes combined), regardless of species
-    K_total = K_A + K_B
+    K_A = K_total / 2  # EVEN NUMBER; carrying capacity (on resource alpha) of entire range (for two sexes combined), regardless of species 
+    K_B = K_total / 2   # EVEN NUMBER; carrying capacity (on resource beta) of entire range (for two sexes combined), regardless of species
+    #K_total = K_A + K_B
     pop0_starting_N = K_A   # starting N of species 0
     pop0_starting_N_half = Int(pop0_starting_N/2)
     pop1_starting_N = K_B   # starting N of species 1
@@ -312,7 +314,12 @@ function run_HZAM(ecolDiff, intrinsic_R,  max_generations, set_name)
         end # of w_hyb loop   
     end # of replicate loop
 
-    if save_outcomes
+    if save_outcomes_JL
+        filename = string("HZAM_Sym_Julia_results_GitIgnore/outcomeArray_set",set_name,"_ecolDiff",ecolDiff,"_growthrate",intrinsic_R,"_K",K_total,"_FL",total_functional_loci,"_NL",num_neutral_loci,"_gen",max_generations,".jld2")
+        save_object(filename, outcome_array)
+    end
+ 
+    if save_outcomes_csv
         for i in 1:size(outcome_array, 3)
             filename = string("HZAM_Sym_Julia_results_GitIgnore/outcomeArray_set",set_name,"_ecolDiff",ecolDiff,"_growthrate",intrinsic_R,"_K",K_total,"_FL",total_functional_loci,"_NL",num_neutral_loci,"_gen",max_generations,"_rep",replications[i])
             CSV.write(filename, Tables.table(outcome_array[:,:,i]), writeheader=false)
@@ -337,7 +344,7 @@ function convert_to_cat_array(outcome_array)
     return cat_outcome_array
 end 
 
-# funciton for plotting grid of pie charts showing distribution of four outcomes, using categorical array as input
+# function for plotting grid of pie charts showing distribution of four outcomes, using categorical array as input
 function plot_all_outcomes(cat_outcome_array)
     num_outcome_types = length(levels(cat_outcome_array))
     outcome_counts = Array{Int16, 2}(undef, num_outcome_types, (size(cat_outcome_array, 1)*size(cat_outcome_array, 2) )) 
@@ -349,7 +356,7 @@ function plot_all_outcomes(cat_outcome_array)
         end
     end
     colors_of_outcomes = [RGB(0,0,0), plasma[0.525], plasma[0.2], plasma[0.9]] # colors for 4 outcome categories
-    pie(outcome_counts, layout = grid(size(cat_outcome_array, 1), size(outcome_array, 2)), legend = false, palette = colors_of_outcomes, margin = -2.0mm)
+    pie(outcome_counts, layout = grid(size(cat_outcome_array, 1), size(cat_outcome_array, 2)), legend = false, palette = colors_of_outcomes, margin = -2.0mm)
     plot!(size=(800,1300))
 end
 
@@ -357,9 +364,10 @@ end
 
 function plot_common_outcomes(common_outcome_array)
     # make heat map of outcomes
+    colors_of_outcomes = [RGB(0,0,0), plasma[0.525], plasma[0.2], plasma[0.9]] # colors for 4 outcome categories
     one_outcome_array = reverse(common_outcome_array, dims=1)
     x_midpoints = log10.([1, 3, 10, 30, 100, 300, 1000, 5000])  # the S_AM values, with Inf convert to 3000 for graphing 
-    # y_midpoints = reverse(w_hyb_set)
+    w_hyb_set = [1, 0.98, 0.95, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0] # for just one run, just put one number in this and next line
     y_midpoints = reverse(w_hyb_set) 
     heatmap(x_midpoints, y_midpoints, one_outcome_array, c = colors_of_outcomes, yflip = false, tick_direction = :out, colorbar = false, size = (440,310), framestyle = :box)
     xaxis!("Strength of conspecific mate preference")
@@ -368,24 +376,61 @@ function plot_common_outcomes(common_outcome_array)
     yaxis!("Hybrid fitness")
     yticklabels = ["0.0", "0.1", "0.2", "0.3", "0.4", "0.5", "0.6", "0.7", "0.8", "0.9", "", "", "1.0"]
     plot!(yticks=(y_midpoints, yticklabels), tick_direction = :out)
+    # add white lines
+    plot!([xlims()[1], xlims()[2]], [0.05, 0.05], linecolor = :white, widen = false, legend = false, linewidth=3)
+    x_for_line = mean(x_midpoints[[length(x_midpoints)-1 length(x_midpoints)]])
+    plot!([x_for_line, x_for_line], [ylims()[1], ylims()[2]], linecolor = :white, widen = false, legend = false, linewidth=3)
+end
+
+function get_most_common_outcomes(cat_outcome_array)
+    levels_of_outcomes = levels(cat_outcome_array)
+    num_outcome_types = length(levels_of_outcomes)
+    most_common_outcomes = CategoricalArray{String, 2}(undef, size(cat_outcome_array, 1), size(cat_outcome_array, 2))
+    levels!(most_common_outcomes, ["extinction", "blended", "one_species", "two_species"])
+    for i in 1:size(cat_outcome_array, 1) 
+        for j in 1:size(cat_outcome_array, 2)
+            outcome_counts = Vector{Int}(undef, num_outcome_types) 
+            for outcome_num in 1:num_outcome_types
+                outcome_counts[outcome_num] = sum(cat_outcome_array[i,j,:] .== levels(cat_outcome_array)[outcome_num])
+            end
+            outcomes_with_max_count = findall(outcome_counts .== maximum(outcome_counts))
+            if length(outcomes_with_max_count) == 1
+                most_common_outcomes[i,j] = levels_of_outcomes[outcomes_with_max_count[1]]
+            elseif length(outcomes_with_max_count) >= 2
+                # if tie in outcome count, choose one randomly
+                most_common_outcomes[i,j] = levels_of_outcomes[sample(outcomes_with_max_count)]
+            end
+        end
+    end
+    return most_common_outcomes
 end
 
 
 
 #### Run the actual simulation by calling the above function:
 
-@time TestRunOutcomes = run_HZAM(1.0, 1.05, 50, "TEST")
+TestRunOutcomes = run_HZAM("TEST", 1.0, 1.05, 1:3, 1000, 50)
+
+TestRunOutcomes = run_HZAM("TEST", 1.0, 1.05, 1:3, 1000, 50, 100, 1:3, 4:6, 7:9, 7:9, 10:100)
+
+# guide to input argumetns for run_HZAM function:
+#    run_HZAM(set_name::String, ecolDiff, intrinsic_R, replications, 
+#    K_total::Int = 1000, max_generations::Int = 1000, 
+#    total_loci::Int = 6, female_mating_trait_loci = 1:3, male_mating_trait_loci = 1:3,
+#    competition_trait_loci = 1:3, hybrid_survival_loci = 1:3, neutral_loci = 4:6)
+
 
 cat_TestRunOutcomes = convert_to_cat_array(TestRunOutcomes)
 
 plot_all_outcomes(cat_TestRunOutcomes)
+
+savefig("Test.png")
 savefig("Test.pdf")
 
+most_common_outcomes_cat_TestRunOutcomes = get_most_common_outcomes(cat_TestRunOutcomes)
+
 # test of this using only first replicate:
-plot_common_outcomes(cat_TestRunOutcomes[:,:,1])
-
-
-
+plot_common_outcomes(most_common_outcomes_cat_TestRunOutcomes)
 
 
 
