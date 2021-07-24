@@ -5,14 +5,35 @@
 # Here is a small test addition (to see if GitHub works)
 # A second small test line
 
-# Need to make sure these packages are added:
-# Distributions
-# to add, type "]" to get the "pkg>" prompt, then type e.g. "add Distributions" 
+# Need to make sure these packages below are added.
+# to add, type "]" to get the "pkg>" prompt, then type e.g. "add Distributions";
+# or do this: 
+# import Pkg; 
+# Pkg.add("Distributions") 
+# Pkg.add("Statistics") 
+# Pkg.add("JLD2")
+# Pkg.add("CSV")
+# Pkg.add("DataFrames")
+# Pkg.add("Plots")
+# Pkg.add("CategoricalArrays")
+# Pkg.add("Colors")
+# Pkg.add("ColorSchemes")
+# Pkg.add("CategoricalArrays")
+
 using Distributions # needed for "Poisson" function
 using Statistics  # needed for "mean" function
 using JLD2 # needed for saving / loading data in Julia format
 using CSV # for saving in csv format
 using DataFrames # for converting data to save as csv
+
+# for plotting:
+using Plots
+gr()  # use GR backend for graphs
+using CategoricalArrays
+using Colors, ColorSchemes
+import ColorSchemes.plasma
+using Plots.PlotMeasures  # needed for plot margin adjustment
+
 
 # to start Julia with multiple threads, type in terminal e.g.:
 # julia --threads 4
@@ -101,8 +122,8 @@ function run_HZAM(set_name::String, ecolDiff, intrinsic_R, replications,
         run_set_name = string(set_name,"_rep", replicate_ID)
 
         # Loop through the different simulation sets
-        for i in 1:length(w_hyb_set)
-            Threads.@threads for j in 1:length(S_AM_set) 
+        Threads.@threads for i in 1:length(w_hyb_set)
+            for j in 1:length(S_AM_set) 
                 w_hyb = w_hyb_set[i]
                 S_AM = S_AM_set[j]
                 println("w_hyb = ",w_hyb,"; S_AM = ",S_AM)
@@ -330,13 +351,6 @@ end
 
 #### functions for summarizing and plotting results
 
-using Plots
-gr()  # use GR backend for graphs
-using CategoricalArrays
-using Colors, ColorSchemes
-import ColorSchemes.plasma
-using Plots.PlotMeasures # for setting margins
-
 # convert outcome array (an array of strings) to categorical array
 function convert_to_cat_array(outcome_array)
     cat_outcome_array = compress(CategoricalArray(outcome_array))
@@ -358,28 +372,6 @@ function plot_all_outcomes(cat_outcome_array)
     colors_of_outcomes = [RGB(0,0,0), plasma[0.525], plasma[0.2], plasma[0.9]] # colors for 4 outcome categories
     pie(outcome_counts, layout = grid(size(cat_outcome_array, 1), size(cat_outcome_array, 2)), legend = false, palette = colors_of_outcomes, margin = -2.0mm)
     plot!(size=(800,1300))
-end
-
-#savefig("Fig3A_10reps_pie_outcomes.pdf")
-
-function plot_common_outcomes(common_outcome_array)
-    # make heat map of outcomes
-    colors_of_outcomes = [RGB(0,0,0), plasma[0.525], plasma[0.2], plasma[0.9]] # colors for 4 outcome categories
-    one_outcome_array = reverse(common_outcome_array, dims=1)
-    x_midpoints = log10.([1, 3, 10, 30, 100, 300, 1000, 5000])  # the S_AM values, with Inf convert to 3000 for graphing 
-    w_hyb_set = [1, 0.98, 0.95, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0] # for just one run, just put one number in this and next line
-    y_midpoints = reverse(w_hyb_set) 
-    heatmap(x_midpoints, y_midpoints, one_outcome_array, c = colors_of_outcomes, yflip = false, tick_direction = :out, colorbar = false, size = (440,310), framestyle = :box)
-    xaxis!("Strength of conspecific mate preference")
-    xticklabels = ["1", "3", "10", "30", "100", "300", "1000", "complete"]
-    plot!(xticks=(x_midpoints, xticklabels))
-    yaxis!("Hybrid fitness")
-    yticklabels = ["0.0", "0.1", "0.2", "0.3", "0.4", "0.5", "0.6", "0.7", "0.8", "0.9", "", "", "1.0"]
-    plot!(yticks=(y_midpoints, yticklabels), tick_direction = :out)
-    # add white lines
-    plot!([xlims()[1], xlims()[2]], [0.05, 0.05], linecolor = :white, widen = false, legend = false, linewidth=3)
-    x_for_line = mean(x_midpoints[[length(x_midpoints)-1 length(x_midpoints)]])
-    plot!([x_for_line, x_for_line], [ylims()[1], ylims()[2]], linecolor = :white, widen = false, legend = false, linewidth=3)
 end
 
 function get_most_common_outcomes(cat_outcome_array)
@@ -405,13 +397,337 @@ function get_most_common_outcomes(cat_outcome_array)
     return most_common_outcomes
 end
 
+function plot_common_outcomes(common_outcome_array)
+    # make heat map of outcomes
+    colors_of_outcomes = [RGB(0,0,0), plasma[0.525], plasma[0.2], plasma[0.9]] # colors for 4 outcome categories
+    one_outcome_array = reverse(common_outcome_array, dims=1)
+    x_midpoints = log10.([1, 3, 10, 30, 100, 300, 1000, 5000])  # the S_AM values, with Inf convert to 3000 for graphing 
+    w_hyb_set = [1, 0.98, 0.95, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0] # for just one run, just put one number in this and next line
+    y_midpoints = reverse(w_hyb_set)
+    min_color = minimum(levelcode.(one_outcome_array)) # this and next line needed to choose the proper colors for the figure
+    max_color = maximum(levelcode.(one_outcome_array))
+    heatmap(x_midpoints, y_midpoints, one_outcome_array, c = colors_of_outcomes[min_color:max_color], yflip = false, tick_direction = :out, colorbar = false, size = (440,310), framestyle = :box)
+    xaxis!("Strength of conspecific mate preference")
+    xticklabels = ["1", "3", "10", "30", "100", "300", "1000", "complete"]
+    plot!(xticks=(x_midpoints, xticklabels))
+    yaxis!("Hybrid fitness")
+    yticklabels = ["0.0", "0.1", "0.2", "0.3", "0.4", "0.5", "0.6", "0.7", "0.8", "0.9", "", "", "1.0"]
+    plot!(yticks=(y_midpoints, yticklabels), tick_direction = :out)
+    # add white lines
+    plot!([xlims()[1], xlims()[2]], [0.05, 0.05], linecolor = :white, widen = false, legend = false, linewidth=3)
+    x_for_line = mean(x_midpoints[[length(x_midpoints)-1 length(x_midpoints)]])
+    plot!([x_for_line, x_for_line], [ylims()[1], ylims()[2]], linecolor = :white, widen = false, legend = false, linewidth=3)
+end
 
+function make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
+    cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
+    display(plot_all_outcomes(cat_RunOutcomes))
+    savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
+    savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
+    most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
+    display(plot_common_outcomes(most_common_outcomes))
+    savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
+    savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
+end
 
 #### Run the actual simulation by calling the above function:
 
-TestRunOutcomes = run_HZAM("TEST", 1.0, 1.05, 1:3, 1000, 50)
+# RunOutcomes = run_HZAM("TEST", 1.0, 1.05, 1:3, 100, 50)
+ResultsFolder = "HZAM_Sym_Julia_results_GitIgnore"
 
-TestRunOutcomes = run_HZAM("TEST", 1.0, 1.05, 1:3, 1000, 50, 100, 1:3, 4:6, 7:9, 7:9, 10:100)
+RunName = "JL_fig3b"
+RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25)
+# started 8:48pm 15July2021; finished at 12 midnight
+cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
+plot_all_outcomes(cat_RunOutcomes)
+savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
+savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
+most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
+plot_common_outcomes(most_common_outcomes)
+savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
+savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
+
+RunName = "JL_fig3a"
+RunOutcomes = run_HZAM(RunName, 0.0, 1.05, 1:25)
+# started 10:52am; finished 3:12pm 15July2021
+cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
+plot_all_outcomes(cat_RunOutcomes)
+savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
+savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
+most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
+plot_common_outcomes(most_common_outcomes)
+savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
+savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
+
+RunName = "JL_LikeFig3b_butFL9_TEST"
+RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25, 
+    1000, 1000,
+    18, 1:9, 1:9,
+    1:9, 1:9, 10:18)
+# started 10:18pm 16July2021; finished 4:44am
+cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
+display(plot_all_outcomes(cat_RunOutcomes))
+savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
+savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
+most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
+display(plot_common_outcomes(most_common_outcomes))
+savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
+savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
+
+RunName = "JL_LikeFig3b_butFL1"
+RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25, 
+    1000, 1000,
+    2, 1:1, 1:1,
+    1:1, 1:1, 2:2)
+# started 6:23am 17July2021; finished 9:23am
+cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
+display(plot_all_outcomes(cat_RunOutcomes))
+savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
+savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
+most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
+display(plot_common_outcomes(most_common_outcomes))
+savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
+savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
+
+RunName = "JL_LikeFig3b_butFL27"
+RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25, 
+    1000, 1000,
+    54, 1:27, 1:27,
+    1:27, 1:27, 28:54)
+# started 10am 17July2021; finished 9:30pm
+cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
+display(plot_all_outcomes(cat_RunOutcomes))
+savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
+savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
+most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
+display(plot_common_outcomes(most_common_outcomes))
+savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
+savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
+
+RunName = "JL_LikeFig4c_butFL27"
+RunOutcomes = run_HZAM(RunName, 1.0, 2.6, 1:25, 
+    1000, 1000,
+    54, 1:27, 1:27,
+    1:27, 1:27, 28:54)
+# started 10:42pm 17July2021; finished 1:55pm 18July2021
+cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
+display(plot_all_outcomes(cat_RunOutcomes))
+savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
+savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
+most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
+display(plot_common_outcomes(most_common_outcomes))
+savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
+savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
+
+# switched to 8 threads (actually, comparing times below to above, it looks like 8 threads about as fast as 4, since only 4 cores?)
+
+RunName = "JL_Fig4a"
+RunOutcomes = run_HZAM(RunName, 1.0, 1.025, 1:25)
+# started around 4:30pm 18July2021; finished 6:46pm 
+cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
+display(plot_all_outcomes(cat_RunOutcomes))
+savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
+savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
+most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
+display(plot_common_outcomes(most_common_outcomes))
+savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
+savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
+
+RunName = "JL_Fig4b"
+RunOutcomes = run_HZAM(RunName, 1.0, 1.2, 1:25)
+# started 8:09pm 18July2021; finished 11:37pm
+cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
+display(plot_all_outcomes(cat_RunOutcomes))
+savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
+savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
+most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
+display(plot_common_outcomes(most_common_outcomes))
+savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
+savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
+
+RunName = "JL_Fig4c"
+RunOutcomes = run_HZAM(RunName, 1.0, 2.6, 1:25)
+# started 6:50am 19July2021; finished 10:51am
+cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
+display(plot_all_outcomes(cat_RunOutcomes))
+savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
+savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
+most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
+display(plot_common_outcomes(most_common_outcomes))
+savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
+savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
+
+RunName = "JL_Fig6(1,2)"
+RunOutcomes = run_HZAM(RunName, 0.25, 1.05, 1:25)
+# started 12:10pm 19July2021; finished 3:58pm
+cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
+display(plot_all_outcomes(cat_RunOutcomes))
+savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
+savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
+most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
+display(plot_common_outcomes(most_common_outcomes))
+savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
+savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
+
+# switching back to 4 threads (from 8) to compare times
+
+RunName = "JL_Fig6(1,3)"
+RunOutcomes = run_HZAM(RunName, 0.5, 1.05, 1:25)
+# started 4:16pm 19July2021; finished 7:43pm  # so 3.5 hrs, a bit shorter than the run above with 8 threads.
+cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
+display(plot_all_outcomes(cat_RunOutcomes))
+savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
+savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
+most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
+display(plot_common_outcomes(most_common_outcomes))
+savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
+savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
+
+RunName = "JL_Fig6(1,4)"
+RunOutcomes = run_HZAM(RunName, 0.75, 1.05, 1:25)
+# started about 8:30pm 19July2021; finished 11:35pm
+cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
+display(plot_all_outcomes(cat_RunOutcomes))
+savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
+savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
+most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
+display(plot_common_outcomes(most_common_outcomes))
+savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
+savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
+
+RunName = "JL_Fig6(2,1)"
+RunOutcomes = run_HZAM(RunName, 0.0, 2.6, 1:25)
+# started around 6:30am 20July2021; finished 10:45am
+cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
+display(plot_all_outcomes(cat_RunOutcomes))
+savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
+savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
+most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
+display(plot_common_outcomes(most_common_outcomes))
+savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
+savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
+
+RunName = "JL_Fig6(2,2)"
+RunOutcomes = run_HZAM(RunName, 0.25, 2.6, 1:25)
+# started 12:30pm; finished 4:52pm
+cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
+display(plot_all_outcomes(cat_RunOutcomes))
+savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
+savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
+most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
+display(plot_common_outcomes(most_common_outcomes))
+savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
+savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
+
+RunName = "JL_Fig6(2,3)"
+RunOutcomes = run_HZAM(RunName, 0.5, 2.6, 1:25)
+# started 6:08pm 20July2021; finished 10:37pm
+cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
+display(plot_all_outcomes(cat_RunOutcomes))
+savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
+savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
+most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
+display(plot_common_outcomes(most_common_outcomes))
+savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
+savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
+
+RunName = "JL_Fig6(2,4)"
+RunOutcomes = run_HZAM(RunName, 0.75, 2.6, 1:25)
+# started about 10:45pm; finished 2:53am 21July2021
+cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
+display(plot_all_outcomes(cat_RunOutcomes))
+savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
+savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
+most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
+display(plot_common_outcomes(most_common_outcomes))
+savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
+savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
+
+# Will explore changing number of gens, to see if different
+# Also, moving @threads out one loop to w_hyb_set loop 
+
+RunName = "JL_fig3b2000gen"
+RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25,
+    1000,2000)
+# started about 6:30am 21July2021; finished 12:47pm
+cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
+display(plot_all_outcomes(cat_RunOutcomes))
+savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
+savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
+most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
+display(plot_common_outcomes(most_common_outcomes))
+savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
+savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
+
+
+RunName = "JL_fig3b500gen"
+RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25,
+    1000,500)
+# started about 8:15pm; finished 9:43pm
+cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
+display(plot_all_outcomes(cat_RunOutcomes))
+savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
+savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
+most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
+display(plot_common_outcomes(most_common_outcomes))
+savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
+savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
+
+RunName = "JL_fig3b250gen"
+RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25,
+    1000, 250)
+# started 5:10pm; finished 5:56pm 22July2021
+cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
+display(plot_all_outcomes(cat_RunOutcomes))
+savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
+savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
+most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
+display(plot_common_outcomes(most_common_outcomes))
+savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
+savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
+
+RunName = "JL_fig3b125gen"
+RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25,
+    1000, 125)
+# started 7:19pm; finished 7:45pm
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
+
+RunName = "JL_fig3bDiffLociTraitPref"
+RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25,
+    1000, 1000,
+    9, 1:3, 4:6,
+    1:6, 1:6, 7:9)
+# started 9:24pm 22July2021; finished 12:21am
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
+
+RunName = "JL_fig3bDiffLociTraitPrefEcol"
+RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25,
+    1000, 1000,
+    12, 1:3, 4:6,
+    7:9, 7:9, 10:12)
+# started 7:03am 23July2021; finished 10:39am
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
+
+
+
+# got the below from: https://discourse.julialang.org/t/overwriting-functions-in-conditional-statements/9459
+
+x = 2
+
+
+if (x == 1)
+    fn = ()->"this"
+elseif (x == 2)
+    fn = ()->"that"
+else
+    fn = ()->"the other"
+end
+fn()
+
+
+
+
+# TestRunOutcomes = run_HZAM("TEST", 1.0, 1.05, 1:3, 1000, 50, 100, 1:3, 4:6, 7:9, 7:9, 10:100)
 
 # guide to input argumetns for run_HZAM function:
 #    run_HZAM(set_name::String, ecolDiff, intrinsic_R, replications, 
@@ -420,9 +736,9 @@ TestRunOutcomes = run_HZAM("TEST", 1.0, 1.05, 1:3, 1000, 50, 100, 1:3, 4:6, 7:9,
 #    competition_trait_loci = 1:3, hybrid_survival_loci = 1:3, neutral_loci = 4:6)
 
 
-cat_TestRunOutcomes = convert_to_cat_array(TestRunOutcomes)
+cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
 
-plot_all_outcomes(cat_TestRunOutcomes)
+plot_all_outcomes(cat_RunOutcomes)
 
 savefig("Test.png")
 savefig("Test.pdf")
