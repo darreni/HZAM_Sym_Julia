@@ -60,10 +60,29 @@ function calc_traits_additive(genotypes)
     return traits
 end
 
-function run_HZAM(set_name::String, ecolDiff, intrinsic_R, replications, 
+function get_survival_fitnesses_epistasis(genotypes, w_hyb, beta=1)
+    survival_HI = calc_traits_additive(genotypes)
+    epistasis_fitnesses = 1 .- (1 - w_hyb) .* (4 .* survival_HI .* (1 .- survival_HI)).^beta
+    return epistasis_fitnesses 
+end
+
+function get_survival_fitnesses_hetdisadvantage(genotypes, w_hyb)
+    N = size(genotypes, 3)
+    num_loci = size(genotypes, 2)
+    s_per_locus = 1 - w_hyb ^ (1/num_loci)  # loss in fitness due to each heterozygous locus 
+    num_hetloci = Array{Int16, 1}(undef, N)
+    for ind in 1:N  # count number of het loci per individual
+        num_hetloci[ind] = sum(genotypes[1,:,ind] .!= genotypes[2,:,ind])
+    end
+    hetdisadvantage_fitnesses = (1 - s_per_locus) .^ num_hetloci
+    return hetdisadvantage_fitnesses
+end 
+
+function run_HZAM(set_name::String, ecolDiff, intrinsic_R, replications;  # the semicolon makes the following optional keyword arguments 
     K_total::Int = 1000, max_generations::Int = 1000, 
     total_loci::Int = 6, female_mating_trait_loci = 1:3, male_mating_trait_loci = 1:3,
-    competition_trait_loci = 1:3, hybrid_survival_loci = 1:3, neutral_loci = 4:6)
+    competition_trait_loci = 1:3, hybrid_survival_loci = 1:3, neutral_loci = 4:6,
+    survival_fitness_method::String = "epistasis")
     #replications = 1:3  #1:10 # or just 1 for 1 replicate, or something like (2:5) to add replicates after 1 is done
 
     save_outcomes_JL = true
@@ -83,6 +102,15 @@ function run_HZAM(set_name::String, ecolDiff, intrinsic_R, replications,
     # hybrid_survival_loci = 1:3  # indices of the loci that determine survival probability of offspring to adulthood (can be viewed as incompatibilities and/or fitness valley based on ecology)
     # specify indices (columns) of neutral loci (which have no effect on anything, just along for the ride)
     # neutral_loci = 4:6  # indices of neutral loci (used for neutral measure of hybrid index; not used in the HZAM-sym paper)
+
+    # get the chosen survival fitness function
+    if survival_fitness_method == "epistasis"
+        get_survival_fitnesses = get_survival_fitnesses_epistasis
+    elseif survival_fitness_method == "hetdisadvantage"
+        get_survival_fitnesses = get_survival_fitnesses_hetdisadvantage
+    else
+        println("ERROR--no survival fitness method chosen--should be either epistasis or hetdisadvantage")
+    end
 
     total_functional_loci = max(maximum(female_mating_trait_loci), maximum(male_mating_trait_loci), maximum(competition_trait_loci), maximum(hybrid_survival_loci))
     functional_loci_range = 1:total_functional_loci
@@ -110,8 +138,6 @@ function run_HZAM(set_name::String, ecolDiff, intrinsic_R, replications,
     competAbility_useResourceB_species0 = 1 - competAbility_useResourceA_species0
     competAbility_useResourceA_species1 = (1 - ecolDiff)/2   # equals 0 when ecolDiff = 1
     competAbility_useResourceB_species1 = 1 - competAbility_useResourceA_species1
-
-    # max_generations = 50 #1000
 
     # set up array of strings to record outcomes
     outcome_array = Array{String, 3}(undef, length(w_hyb_set), length(S_AM_set), length(replications))
@@ -278,13 +304,12 @@ function run_HZAM(set_name::String, ecolDiff, intrinsic_R, replications,
                     # For later: add in here the option of tracking fitness?
                     
                     # determine survival fitnesses of daughters due to epistasis
-                    survival_HI_daughters = calc_traits_additive(genotypes_daughters[:,hybrid_survival_loci,:])
-                    epistasis_fitness_daughters = 1 .- (1 - w_hyb) .* (4 .* survival_HI_daughters .* (1 .- survival_HI_daughters)).^beta
-                    daughters_survive = epistasis_fitness_daughters .> rand(length(epistasis_fitness_daughters))
+
+                    survival_fitness_daughters = get_survival_fitnesses(genotypes_daughters[:,hybrid_survival_loci,:], w_hyb)
+                    daughters_survive = survival_fitness_daughters .> rand(length(survival_fitness_daughters))
                     # same for sons:
-                    survival_HI_sons = calc_traits_additive(genotypes_sons[:,hybrid_survival_loci,:])
-                    epistasis_fitness_sons = 1 .- (1 - w_hyb) .* (4 .* survival_HI_sons .* (1 .- survival_HI_sons)).^beta
-                    sons_survive = epistasis_fitness_sons .> rand(length(epistasis_fitness_sons))
+                    survival_fitness_sons = get_survival_fitnesses(genotypes_sons[:,hybrid_survival_loci,:], w_hyb)
+                    sons_survive = survival_fitness_sons .> rand(length(survival_fitness_sons))
 
                     # check if either no surviving daughters or no surviving sons, and end the simulation if so
                     if (sum(daughters_survive) == 0) || (sum(sons_survive) == 0)
@@ -708,45 +733,17 @@ RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25,
 # started 7:03am 23July2021; finished 10:39am
 make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
 
+# 24July2021 modified HZAM to have option of heterozygote disadvantage
 
+RunName = "TEST"
+RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1;
+    K_total = 1000, max_generations = 250,
+    survival_fitness_method = "hetdisadvantage")
 
-# got the below from: https://discourse.julialang.org/t/overwriting-functions-in-conditional-statements/9459
-
-x = 2
-
-
-if (x == 1)
-    fn = ()->"this"
-elseif (x == 2)
-    fn = ()->"that"
-else
-    fn = ()->"the other"
-end
-fn()
-
-
-
-
-# TestRunOutcomes = run_HZAM("TEST", 1.0, 1.05, 1:3, 1000, 50, 100, 1:3, 4:6, 7:9, 7:9, 10:100)
-
-# guide to input argumetns for run_HZAM function:
-#    run_HZAM(set_name::String, ecolDiff, intrinsic_R, replications, 
-#    K_total::Int = 1000, max_generations::Int = 1000, 
-#    total_loci::Int = 6, female_mating_trait_loci = 1:3, male_mating_trait_loci = 1:3,
-#    competition_trait_loci = 1:3, hybrid_survival_loci = 1:3, neutral_loci = 4:6)
-
-
-cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
-
-plot_all_outcomes(cat_RunOutcomes)
-
-savefig("Test.png")
-savefig("Test.pdf")
-
-most_common_outcomes_cat_TestRunOutcomes = get_most_common_outcomes(cat_TestRunOutcomes)
-
-# test of this using only first replicate:
-plot_common_outcomes(most_common_outcomes_cat_TestRunOutcomes)
-
+#    function run_HZAM(set_name::String, ecolDiff, intrinsic_R, replications;  # the semicolon makes the following optional keyword arguments 
+#        K_total::Int = 1000, max_generations::Int = 1000, 
+#        total_loci::Int = 6, female_mating_trait_loci = 1:3, male_mating_trait_loci = 1:3,
+#        competition_trait_loci = 1:3, hybrid_survival_loci = 1:3, neutral_loci = 4:6,
+#        survival_fitness_method = "epistasis")
 
 
