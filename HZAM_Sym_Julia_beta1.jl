@@ -82,7 +82,7 @@ function run_HZAM(set_name::String, ecolDiff, intrinsic_R, replications;  # the 
     K_total::Int = 1000, max_generations::Int = 1000, 
     total_loci::Int = 6, female_mating_trait_loci = 1:3, male_mating_trait_loci = 1:3,
     competition_trait_loci = 1:3, hybrid_survival_loci = 1:3, neutral_loci = 4:6,
-    survival_fitness_method::String = "epistasis")
+    survival_fitness_method::String = "epistasis", per_reject_cost = 0)
     #replications = 1:3  #1:10 # or just 1 for 1 replicate, or something like (2:5) to add replicates after 1 is done
 
     save_outcomes_JL = true
@@ -102,12 +102,15 @@ function run_HZAM(set_name::String, ecolDiff, intrinsic_R, replications;  # the 
     # hybrid_survival_loci = 1:3  # indices of the loci that determine survival probability of offspring to adulthood (can be viewed as incompatibilities and/or fitness valley based on ecology)
     # specify indices (columns) of neutral loci (which have no effect on anything, just along for the ride)
     # neutral_loci = 4:6  # indices of neutral loci (used for neutral measure of hybrid index; not used in the HZAM-sym paper)
+    # per_reject_cost = fitness loss of female per male rejected (due to search time, etc.)
 
     # get the chosen survival fitness function
     if survival_fitness_method == "epistasis"
         get_survival_fitnesses = get_survival_fitnesses_epistasis
+        short_survFitnessMethod = "Ep"
     elseif survival_fitness_method == "hetdisadvantage"
         get_survival_fitnesses = get_survival_fitnesses_hetdisadvantage
+        short_survFitnessMethod = "Het"
     else
         println("ERROR--no survival fitness method chosen--should be either epistasis or hetdisadvantage")
     end
@@ -118,8 +121,6 @@ function run_HZAM(set_name::String, ecolDiff, intrinsic_R, replications;  # the 
     if total_functional_loci + num_neutral_loci ≠ total_loci
         println("#### WARNING: Please examine your loci numbers and indices, as they don't all match up ####")
     end 
-
-    per_reject_cost = 0 # fitness loss of female per male rejected (due to search time, etc.)
 
     # intrinsic_R = 1.05  # Intrinsic growth rate, this is the average maximum expected number of offspring per individual, when pop size far below K
     K_A = K_total / 2  # EVEN NUMBER; carrying capacity (on resource alpha) of entire range (for two sexes combined), regardless of species 
@@ -154,7 +155,7 @@ function run_HZAM(set_name::String, ecolDiff, intrinsic_R, replications;  # the 
                 S_AM = S_AM_set[j]
                 println("w_hyb = ",w_hyb,"; S_AM = ",S_AM)
 
-                run_name = string("HZAM_animation_run",run_set_name,"_ecolDiff",ecolDiff,"_growthrate",intrinsic_R,"_K",K_total,"_FL",total_functional_loci,"_NL",num_neutral_loci,"_gen",max_generations,"_Whyb",w_hyb,"_SAM",S_AM)
+                run_name = string("HZAM_animation_run",run_set_name,"_surv",short_survFitnessMethod,"_ecolDiff",ecolDiff,"_growthrate",intrinsic_R,"_K",K_total,"_FL",total_functional_loci,"_NL",num_neutral_loci,"_gen",max_generations,"_SC",per_reject_cost,"_Whyb",w_hyb,"_SAM",S_AM)
                 
                 # convert S_AM to pref_ratio (for use in math below)
                 if S_AM == 1
@@ -258,8 +259,9 @@ function run_HZAM(set_name::String, ecolDiff, intrinsic_R, replications;  # the 
                                 end
                             end
                         end
-                        # determine fitness cost due to mate search (number of rejected males), which is zero in HZAM-sym paper 
-                        search_fitness = (1-per_reject_cost) ^ rejects    # (in HZAM-sym paper, per_reject_cost = 0)
+                        # determine fitness cost due to mate search (number of rejected males)
+                        search_fitness = (1-per_reject_cost) ^ rejects    # (in most of HZAM-sym paper, per_reject_cost = 0)
+
                         # determine fitness due to female use of available resources
                         growth_rate_of_focal_female = (ind_useResourceA_F[mother] * growth_rate_ResourceA) + (ind_useResourceB_F[mother] * growth_rate_ResourceB)
                         #combine for total fitness:   
@@ -361,13 +363,13 @@ function run_HZAM(set_name::String, ecolDiff, intrinsic_R, replications;  # the 
     end # of replicate loop
 
     if save_outcomes_JL
-        filename = string("HZAM_Sym_Julia_results_GitIgnore/outcomeArray_set",set_name,"_ecolDiff",ecolDiff,"_growthrate",intrinsic_R,"_K",K_total,"_FL",total_functional_loci,"_NL",num_neutral_loci,"_gen",max_generations,".jld2")
+        filename = string("HZAM_Sym_Julia_results_GitIgnore/outcomeArray_set",set_name,"_surv",short_survFitnessMethod,"_ecolDiff",ecolDiff,"_growthrate",intrinsic_R,"_K",K_total,"_FL",total_functional_loci,"_NL",num_neutral_loci,"_gen",max_generations,"_SC",per_reject_cost,".jld2")
         save_object(filename, outcome_array)
     end
  
     if save_outcomes_csv
         for i in 1:size(outcome_array, 3)
-            filename = string("HZAM_Sym_Julia_results_GitIgnore/outcomeArray_set",set_name,"_ecolDiff",ecolDiff,"_growthrate",intrinsic_R,"_K",K_total,"_FL",total_functional_loci,"_NL",num_neutral_loci,"_gen",max_generations,"_rep",replications[i])
+            filename = string("HZAM_Sym_Julia_results_GitIgnore/outcomeArray_set",set_name,"_surv",short_survFitnessMethod,"_ecolDiff",ecolDiff,"_growthrate",intrinsic_R,"_K",K_total,"_FL",total_functional_loci,"_NL",num_neutral_loci,"_gen",max_generations,"_SC",per_reject_cost,"_rep",replications[i])
             CSV.write(filename, Tables.table(outcome_array[:,:,i]), writeheader=false)
         end 
     end
@@ -735,10 +737,158 @@ make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
 
 # 24July2021 modified HZAM to have option of heterozygote disadvantage
 
-RunName = "TEST"
-RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1;
-    K_total = 1000, max_generations = 250,
+RunName = "JL_fig3bHet"
+RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25;
     survival_fitness_method = "hetdisadvantage")
+# started 11:49am 24July2021; finished 3:26pm
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
+
+RunName = "JL_fig3aHet"
+RunOutcomes = run_HZAM(RunName, 0.0, 1.05, 1:25;
+    survival_fitness_method = "hetdisadvantage")
+# started 5:10pm 24July2021; finished 10:17pm
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
+
+RunName = "JL_LikeFig3bHet_butFL9"
+RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25,
+    K_total = 1000, max_generations = 1000,
+    total_loci = 18, female_mating_trait_loci = 1:9, male_mating_trait_loci = 1:9,
+    competition_trait_loci = 1:9, hybrid_survival_loci = 1:9, neutral_loci = 10:18,
+    survival_fitness_method = "hetdisadvantage")
+# started 10:27pm 24July2021; finished 5:28am 25July2021
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
+
+RunName = "JL_LikeFig3bHet_butFL1"
+RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25,
+    K_total = 1000, max_generations = 1000,
+    total_loci = 2, female_mating_trait_loci = 1:1, male_mating_trait_loci = 1:1,
+    competition_trait_loci = 1:1, hybrid_survival_loci = 1:1, neutral_loci = 2:2,
+    survival_fitness_method = "hetdisadvantage")
+# started about 7:45am; finished 9:32am 25July2021
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
+
+
+RunName = "JL_LikeFig3bHet_butFL2"
+RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25,
+    K_total = 1000, max_generations = 1000,
+    total_loci = 4, female_mating_trait_loci = 1:2, male_mating_trait_loci = 1:2,
+    competition_trait_loci = 1:2, hybrid_survival_loci = 1:2, neutral_loci = 3:4,
+    survival_fitness_method = "hetdisadvantage")
+# started 10:40am; finished 2:13pm
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
+
+RunName = "JL_Fig4aHet"
+RunOutcomes = run_HZAM(RunName, 1.0, 1.025, 1:25;
+    survival_fitness_method = "hetdisadvantage")
+# started 4:42pm; finished 8:04pm
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
+
+RunName = "JL_Fig4bHet"
+RunOutcomes = run_HZAM(RunName, 1.0, 1.2, 1:25;
+    survival_fitness_method = "hetdisadvantage")
+# started 9:21pm; finished 2:08am 26July2021
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
+
+RunName = "JL_Fig4cHet"
+RunOutcomes = run_HZAM(RunName, 1.0, 2.6, 1:25;
+    survival_fitness_method = "hetdisadvantage")
+# started 6:17am 26July2021; finished 11:53am
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
+
+RunName = "JL_Fig6(1,2)Het"
+RunOutcomes = run_HZAM(RunName, 0.25, 1.05, 1:25;
+    survival_fitness_method = "hetdisadvantage")
+# started 11:16pm 26July2021; finished 4:03am 27July2021
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
+
+RunName = "JL_Fig6(1,3)Het"
+RunOutcomes = run_HZAM(RunName, 0.5, 1.05, 1:25;
+    survival_fitness_method = "hetdisadvantage")
+# finished 12pm 27July2021
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
+
+RunName = "JL_Fig6(1,4)Het"
+RunOutcomes = run_HZAM(RunName, 0.75, 1.05, 1:25;
+    survival_fitness_method = "hetdisadvantage")
+# started 1:27pm 27July2021; finished 6:05pm
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
+
+RunName = "JL_Fig6(2,1)Het"
+RunOutcomes = run_HZAM(RunName, 0.0, 2.6, 1:25;
+    survival_fitness_method = "hetdisadvantage")
+# started 7:39pm 27July2021; finished 1:34am 28July2021
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
+
+RunName = "JL_Fig6(2,2)Het"
+RunOutcomes = run_HZAM(RunName, 0.25, 2.6, 1:25;
+    survival_fitness_method = "hetdisadvantage")
+# started 6:43am 28July2021; finished 12:39pm 28July2021
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
+
+RunName = "JL_Fig6(2,3)Het"
+RunOutcomes = run_HZAM(RunName, 0.5, 2.6, 1:25;
+    survival_fitness_method = "hetdisadvantage")
+# started 4:15pm; finished 10:08pm 28July2021
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
+
+RunName = "JL_Fig6(2,4)Het"
+RunOutcomes = run_HZAM(RunName, 0.75, 2.6, 1:25;
+    survival_fitness_method = "hetdisadvantage")
+# started 10:16pm 28July2021; finished 3:59am
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
+
+RunName = "JL_fig3bHet2000gen"
+RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25;
+    max_generations = 2000, survival_fitness_method = "hetdisadvantage")
+# started 6:00am 29July2021; finished 1:49pm
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
+
+RunName = "JL_fig3bHet500gen"
+RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25;
+    max_generations = 500, survival_fitness_method = "hetdisadvantage")
+# started 3:46pm 29July2021; finished 5:47pm
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
+
+RunName = "JL_fig3bHet250gen"
+RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25;
+    max_generations = 250, survival_fitness_method = "hetdisadvantage")
+# started 6:18pm; finished 7:19pm
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
+
+RunName = "JL_fig3bHet125gen"
+RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25;
+    max_generations = 125, survival_fitness_method = "hetdisadvantage")
+# started 7:29pm; finished 8:00pm
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
+
+RunName = "JL_fig3bHet4000gen"
+RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25;
+    max_generations = 4000, survival_fitness_method = "hetdisadvantage")
+# started 9:19pm 29July2021; finished 12:36pm
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
+
+RunName = "JL_fig3bHetDiffLociTraitPref"
+RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25;
+    K_total = 1000, max_generations = 1000,
+    total_loci = 9, female_mating_trait_loci = 1:3, male_mating_trait_loci = 4:6,
+    competition_trait_loci = 1:6, hybrid_survival_loci = 1:6, neutral_loci = 7:9,
+    survival_fitness_method = "hetdisadvantage")
+# started 8:00pm 30July2021; finished 12:35am 31July2021
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
+
+RunName = "JL_fig3bHetDiffLociTraitPrefEcol"
+RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25;
+    K_total = 1000, max_generations = 1000,
+    total_loci = 12, female_mating_trait_loci = 1:3, male_mating_trait_loci = 4:6,
+    competition_trait_loci = 7:9, hybrid_survival_loci = 7:9, neutral_loci = 10:12,
+    survival_fitness_method = "hetdisadvantage")
+# started 5:37am 31July2021; finished 11:29am
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
+
+RunName = "JL_fig3bHet_searchCost0.1_TEST"
+RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1;
+    survival_fitness_method = "hetdisadvantage", per_reject_cost = 0.1)
+
 
 #    function run_HZAM(set_name::String, ecolDiff, intrinsic_R, replications;  # the semicolon makes the following optional keyword arguments 
 #        K_total::Int = 1000, max_generations::Int = 1000, 
