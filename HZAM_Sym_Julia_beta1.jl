@@ -340,8 +340,9 @@ function run_HZAM(set_name::String, ecolDiff, intrinsic_R, replications;  # the 
                 else  # no complete extinction
                     # use trait loci to calculate HI of each individual
                     functional_HI_all_inds = [calc_traits_additive(genotypes_F[:,functional_loci_range,:]); calc_traits_additive(genotypes_M[:,functional_loci_range,:])]
-                    species0_proportion = sum(functional_HI_all_inds .== 0) / length(functional_HI_all_inds)
-                    species1_proportion = sum(functional_HI_all_inds .== 1) / length(functional_HI_all_inds)
+                    # calculate proportion of all individuals who are species0 or species1 (defined as low and high 10% of HI distribution, respectively)
+                    species0_proportion = sum(functional_HI_all_inds .< 0.1) / length(functional_HI_all_inds)
+                    species1_proportion = sum(functional_HI_all_inds .> 0.9) / length(functional_HI_all_inds)
                     if species0_proportion >= 0.85 || species1_proportion >= 0.85
                         outcome = "one_species"
                     elseif (species0_proportion + species1_proportion >= 0.85) && (species0_proportion >= 0.15) && (species1_proportion >= 0.15)
@@ -885,9 +886,28 @@ RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25;
 # started 5:37am 31July2021; finished 11:29am
 make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
 
-RunName = "JL_fig3bHet_searchCost0.1_TEST"
-RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1;
+RunName = "TEST"
+RunOutcomes = run_HZAM(RunName, 1.0, 2.6, 1;
     survival_fitness_method = "hetdisadvantage", per_reject_cost = 0.1)
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
+
+# 3 August 2021 : For purpose of summarizing outcomes when lots of loci,
+# changed definition of species0 and species1 to include HI < 0.1 for species 0,
+# and HI > 0.9 for species 1.
+# Will re-do all sims above 3 loci.
+
+
+
+
+# make graph of epistasis fitness:
+survival_HI = collect(0.0:0.01:1.0)
+beta = 1
+w_hyb = 0.8
+epistasis_fitnesses = 1 .- (1 - w_hyb) .* (4 .* survival_HI .* (1 .- survival_HI)).^beta
+
+using Plots
+display(plot(survival_HI, epistasis_fitnesses, ylims = (0,1)))
+savefig("plot.pdf")
 
 
 #    function run_HZAM(set_name::String, ecolDiff, intrinsic_R, replications;  # the semicolon makes the following optional keyword arguments 
