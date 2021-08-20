@@ -82,7 +82,8 @@ function run_HZAM(set_name::String, ecolDiff, intrinsic_R, replications;  # the 
     K_total::Int = 1000, max_generations::Int = 1000, 
     total_loci::Int = 6, female_mating_trait_loci = 1:3, male_mating_trait_loci = 1:3,
     competition_trait_loci = 1:3, hybrid_survival_loci = 1:3, neutral_loci = 4:6,
-    survival_fitness_method::String = "epistasis", per_reject_cost = 0)
+    survival_fitness_method::String = "epistasis", per_reject_cost = 0,
+    starting_pop_ratio = 1.0)
     #replications = 1:3  #1:10 # or just 1 for 1 replicate, or something like (2:5) to add replicates after 1 is done
 
     save_outcomes_JL = true
@@ -125,10 +126,10 @@ function run_HZAM(set_name::String, ecolDiff, intrinsic_R, replications;  # the 
     # intrinsic_R = 1.05  # Intrinsic growth rate, this is the average maximum expected number of offspring per individual, when pop size far below K
     K_A = K_total / 2  # EVEN NUMBER; carrying capacity (on resource alpha) of entire range (for two sexes combined), regardless of species 
     K_B = K_total / 2   # EVEN NUMBER; carrying capacity (on resource beta) of entire range (for two sexes combined), regardless of species
-    #K_total = K_A + K_B
+    
     pop0_starting_N = K_A   # starting N of species 0
     pop0_starting_N_half = Int(pop0_starting_N/2)
-    pop1_starting_N = K_B   # starting N of species 1
+    pop1_starting_N = Int(round(starting_pop_ratio * K_B))   # starting N of species 1, which can be lower if starting_pop_ratio is below 1)
     pop1_starting_N_half = Int(pop1_starting_N/2)
 
     beta = 1  # the epistasis parameter beta
@@ -886,16 +887,63 @@ RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25;
 # started 5:37am 31July2021; finished 11:29am
 make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
 
-RunName = "TEST"
-RunOutcomes = run_HZAM(RunName, 1.0, 2.6, 1;
-    survival_fitness_method = "hetdisadvantage", per_reject_cost = 0.1)
-make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
-
 # 3 August 2021 : For purpose of summarizing outcomes when lots of loci,
 # changed definition of species0 and species1 to include HI < 0.1 for species 0,
 # and HI > 0.9 for species 1.
 # Will re-do all sims above 3 loci.
 
+RunName = "JL_LikeFig3bHet_butFL9"
+RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25,
+    K_total = 1000, max_generations = 1000,
+    total_loci = 18, female_mating_trait_loci = 1:9, male_mating_trait_loci = 1:9,
+    competition_trait_loci = 1:9, hybrid_survival_loci = 1:9, neutral_loci = 10:18,
+    survival_fitness_method = "hetdisadvantage")
+# started 11:50am 3Aug2021; finished 7:01pm
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
+
+RunName = "JL_LikeFig3bHet_butFL27"
+RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25,
+    K_total = 1000, max_generations = 1000,
+    total_loci = 54, female_mating_trait_loci = 1:27, male_mating_trait_loci = 1:27,
+    competition_trait_loci = 1:27, hybrid_survival_loci = 1:27, neutral_loci = 28:54,
+    survival_fitness_method = "hetdisadvantage")
+# started 7:13pm 3Aug2021; finished 9:11am
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
+
+# Added ability to have a search cost (per_reject_cost)
+# (but the effects are complex, and depend a lot on other parameter combinations)
+RunName = "TEST"
+RunOutcomes = run_HZAM(RunName, 1.0, 1.2, 1;
+    survival_fitness_method = "hetdisadvantage", per_reject_cost = 0.05)
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
+
+
+# Added ability to have one initial population (pop1) start with a smaller population size (but same K).
+# The default for starting_pop_ratio is 1, but if less than 1 then starting pop is that fraction of what it would be.
+
+RunName = "JL_LikeFig3bHet_but_starting_pop_ratio_0.1"
+RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25;
+    survival_fitness_method = "hetdisadvantage",
+    starting_pop_ratio = 0.1)
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
+
+RunName = "JL_LikeFig3bHet_but_starting_pop_ratio_0.5"
+RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25;
+    survival_fitness_method = "hetdisadvantage",
+    starting_pop_ratio = 0.5)
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
+
+RunName = "JL_LikeFig4bHet_but_starting_pop_ratio_0.1"
+RunOutcomes = run_HZAM(RunName, 1.0, 1.2, 1:25;
+    survival_fitness_method = "hetdisadvantage",
+    starting_pop_ratio = 0.1)
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
+
+RunName = "JL_LikeFig4bHet_but_starting_pop_ratio_0.5"
+RunOutcomes = run_HZAM(RunName, 1.0, 1.2, 1:25;
+    survival_fitness_method = "hetdisadvantage",
+    starting_pop_ratio = 0.5)
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
 
 
 
