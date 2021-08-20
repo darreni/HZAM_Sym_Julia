@@ -2,9 +2,6 @@
 # by Darren Irwin, beginning in early July 2021
 # Adapted from the R version of HZAM_Sym
 
-# Here is a small test addition (to see if GitHub works)
-# A second small test line
-
 # Need to make sure these packages below are added.
 # to add, type "]" to get the "pkg>" prompt, then type e.g. "add Distributions";
 # or do this: 
@@ -34,12 +31,10 @@ using Colors, ColorSchemes
 import ColorSchemes.plasma
 using Plots.PlotMeasures  # needed for plot margin adjustment
 
-
 # to start Julia with multiple threads, type in terminal e.g.:
 # julia --threads 4
 # To check, type in Julia: Threads.nthreads()
 # 4
-# (I tried more but the REPL doesn't seem to like more)
 
 # set up functions (should not define functions repeatedly in loop, as causes re-compilation, slows things)
 
@@ -84,7 +79,21 @@ function run_HZAM(set_name::String, ecolDiff, intrinsic_R, replications;  # the 
     competition_trait_loci = 1:3, hybrid_survival_loci = 1:3, neutral_loci = 4:6,
     survival_fitness_method::String = "epistasis", per_reject_cost = 0,
     starting_pop_ratio = 1.0)
-    #replications = 1:3  #1:10 # or just 1 for 1 replicate, or something like (2:5) to add replicates after 1 is done
+    # ecolDiff should be from 0 to 1 (parameter "E" in the paper)
+    # intrinsic_R is called "R" in the paper
+    # replications should be somehting like "1:10" or just "1" for 1 replicate, or something like "2:5" to add replicates after 1 is done
+    # K_total (default 1000) is the total carrying capacity, divided equally between K_alpha and K_beta
+    # max_generations (default 1000) is the number of generations each simulation will run 
+    # total_loci (default 6) is the total number of loci, regardless of their role (with indices 1:total_loci, referred to below)
+    # Need to specify indices (columns) of four types of functional loci (can be the same). At least one should begin with index 1:
+    # female_mating_trait_loci (default 1:3) is indices of the loci that determine the female mating trait
+    # male_mating_trait_loci (default 1:3) is indices of the loci that determine the male mating trait
+    # competition_trait_loci (default 1:3) is indices of the loci that determine the ecological trait (used in fitness related to resource use)
+    # hybrid_survival_loci (default 1:3) is indices of the loci that determine survival probability of offspring to adulthood (can be viewed as incompatibilities and/or fitness valley based on ecology)
+    # Specify indices (columns) of neutral loci (which have no effect on anything, just along for the ride):
+    # neutral_loci (default 4:6) is indices of neutral loci (used for neutral measure of hybrid index; not used in the HZAM-sym paper)
+    # per_reject_cost (default 0, can take values of 0 to 1) is fitness loss of female per male rejected (due to search time, etc.)
+    # starting_pop_ratio (default 1) is the starting ratio of pop A to pop B
 
     save_outcomes_JL = true
     save_outcomes_csv = true  # whether to save the whole outcome array as csv files (with each rep as separate file)
@@ -94,16 +103,6 @@ function run_HZAM(set_name::String, ecolDiff, intrinsic_R, replications;  # the 
     w_hyb_set = [1, 0.98, 0.95, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0] # for just one run, just put one number in this and next line
     # the set of assortative mating strengths (S_AM) that will be run
     S_AM_set = [1, 3, 10, 30, 100, 300, 1000, Inf]  # ratio of: probably of accepting homospecific vs. prob of accepting heterospecific
-
-    #total_loci = 6  # this is the total number of loci, regardless of their role (with indices 1:total_loci, referred to below)
-    # specify indices (columns) of four types of functional loci (can be the same). At least one should begin with index 1
-    # female_mating_trait_loci = 1:3  # indices of the loci that determine the female mating trait
-    # male_mating_trait_loci = 1:3  # indices of the loci that determine the male mating trait
-    # competition_trait_loci = 1:3  # indices of the loci that determine the ecological trait (used in fitness related to resource use)
-    # hybrid_survival_loci = 1:3  # indices of the loci that determine survival probability of offspring to adulthood (can be viewed as incompatibilities and/or fitness valley based on ecology)
-    # specify indices (columns) of neutral loci (which have no effect on anything, just along for the ride)
-    # neutral_loci = 4:6  # indices of neutral loci (used for neutral measure of hybrid index; not used in the HZAM-sym paper)
-    # per_reject_cost = fitness loss of female per male rejected (due to search time, etc.)
 
     # get the chosen survival fitness function
     if survival_fitness_method == "epistasis"
@@ -212,10 +211,7 @@ function run_HZAM(set_name::String, ecolDiff, intrinsic_R, replications;  # the 
                     matings_per_male = zeros(Int8, N_M)
                     matings_per_female = zeros(Int8, N_F)
 
-                    # create empty data structures for keeping track of numbers offspring of parents (which is N in this function)
-                    # function offspring_numbers_object(N)
-                    #     return zeros(Int16, N)
-                    # end
+                    # create empty data structures for keeping track of numbers offspring of parents
                     daughters_per_mother = zeros(Int16, N_F) 
                     sons_per_mother = zeros(Int16, N_F) 
                     daughters_per_father = zeros(Int16, N_M)  
@@ -261,7 +257,7 @@ function run_HZAM(set_name::String, ecolDiff, intrinsic_R, replications;  # the 
                             end
                         end
                         # determine fitness cost due to mate search (number of rejected males)
-                        search_fitness = (1-per_reject_cost) ^ rejects    # (in most of HZAM-sym paper, per_reject_cost = 0)
+                        search_fitness = (1-per_reject_cost) ^ rejects    # (in most of HZAM-Sym paper, per_reject_cost = 0)
 
                         # determine fitness due to female use of available resources
                         growth_rate_of_focal_female = (ind_useResourceA_F[mother] * growth_rate_ResourceA) + (ind_useResourceB_F[mother] * growth_rate_ResourceB)
@@ -304,7 +300,7 @@ function run_HZAM(set_name::String, ecolDiff, intrinsic_R, replications;  # the 
                         break # break out of current loop (this simulation) 
                     end
                     
-                    # For later: add in here the option of tracking fitness?
+                    # For someday: add in here the option of tracking fitness?
                     
                     # determine survival fitnesses of daughters due to epistasis
 
@@ -461,32 +457,20 @@ end
 
 #### Run the actual simulation by calling the above function:
 
+# If wanting to run a test to make sure things are working (after above functions are loaded into memory):
 # RunOutcomes = run_HZAM("TEST", 1.0, 1.05, 1:3, 100, 50)
-ResultsFolder = "HZAM_Sym_Julia_results_GitIgnore"
+
+ResultsFolder = "HZAM_Sym_Julia_results_GitIgnore" # or change to another folder where results will be saved
 
 RunName = "JL_fig3b"
 RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25)
 # started 8:48pm 15July2021; finished at 12 midnight
-cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
-plot_all_outcomes(cat_RunOutcomes)
-savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
-savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
-most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
-plot_common_outcomes(most_common_outcomes)
-savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
-savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
 
 RunName = "JL_fig3a"
 RunOutcomes = run_HZAM(RunName, 0.0, 1.05, 1:25)
 # started 10:52am; finished 3:12pm 15July2021
-cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
-plot_all_outcomes(cat_RunOutcomes)
-savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
-savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
-most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
-plot_common_outcomes(most_common_outcomes)
-savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
-savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
 
 RunName = "JL_LikeFig3b_butFL9_TEST"
 RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25, 
@@ -494,14 +478,7 @@ RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25,
     18, 1:9, 1:9,
     1:9, 1:9, 10:18)
 # started 10:18pm 16July2021; finished 4:44am
-cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
-display(plot_all_outcomes(cat_RunOutcomes))
-savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
-savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
-most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
-display(plot_common_outcomes(most_common_outcomes))
-savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
-savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
 
 RunName = "JL_LikeFig3b_butFL1"
 RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25, 
@@ -509,14 +486,7 @@ RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25,
     2, 1:1, 1:1,
     1:1, 1:1, 2:2)
 # started 6:23am 17July2021; finished 9:23am
-cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
-display(plot_all_outcomes(cat_RunOutcomes))
-savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
-savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
-most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
-display(plot_common_outcomes(most_common_outcomes))
-savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
-savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
 
 RunName = "JL_LikeFig3b_butFL27"
 RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25, 
@@ -524,14 +494,7 @@ RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25,
     54, 1:27, 1:27,
     1:27, 1:27, 28:54)
 # started 10am 17July2021; finished 9:30pm
-cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
-display(plot_all_outcomes(cat_RunOutcomes))
-savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
-savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
-most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
-display(plot_common_outcomes(most_common_outcomes))
-savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
-savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
 
 RunName = "JL_LikeFig4c_butFL27"
 RunOutcomes = run_HZAM(RunName, 1.0, 2.6, 1:25, 
@@ -539,181 +502,77 @@ RunOutcomes = run_HZAM(RunName, 1.0, 2.6, 1:25,
     54, 1:27, 1:27,
     1:27, 1:27, 28:54)
 # started 10:42pm 17July2021; finished 1:55pm 18July2021
-cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
-display(plot_all_outcomes(cat_RunOutcomes))
-savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
-savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
-most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
-display(plot_common_outcomes(most_common_outcomes))
-savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
-savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
-
-# switched to 8 threads (actually, comparing times below to above, it looks like 8 threads about as fast as 4, since only 4 cores?)
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
 
 RunName = "JL_Fig4a"
 RunOutcomes = run_HZAM(RunName, 1.0, 1.025, 1:25)
 # started around 4:30pm 18July2021; finished 6:46pm 
-cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
-display(plot_all_outcomes(cat_RunOutcomes))
-savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
-savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
-most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
-display(plot_common_outcomes(most_common_outcomes))
-savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
-savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
 
 RunName = "JL_Fig4b"
 RunOutcomes = run_HZAM(RunName, 1.0, 1.2, 1:25)
 # started 8:09pm 18July2021; finished 11:37pm
-cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
-display(plot_all_outcomes(cat_RunOutcomes))
-savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
-savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
-most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
-display(plot_common_outcomes(most_common_outcomes))
-savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
-savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
 
 RunName = "JL_Fig4c"
 RunOutcomes = run_HZAM(RunName, 1.0, 2.6, 1:25)
 # started 6:50am 19July2021; finished 10:51am
-cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
-display(plot_all_outcomes(cat_RunOutcomes))
-savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
-savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
-most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
-display(plot_common_outcomes(most_common_outcomes))
-savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
-savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
 
 RunName = "JL_Fig6(1,2)"
 RunOutcomes = run_HZAM(RunName, 0.25, 1.05, 1:25)
 # started 12:10pm 19July2021; finished 3:58pm
-cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
-display(plot_all_outcomes(cat_RunOutcomes))
-savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
-savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
-most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
-display(plot_common_outcomes(most_common_outcomes))
-savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
-savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
-
-# switching back to 4 threads (from 8) to compare times
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
 
 RunName = "JL_Fig6(1,3)"
 RunOutcomes = run_HZAM(RunName, 0.5, 1.05, 1:25)
 # started 4:16pm 19July2021; finished 7:43pm  # so 3.5 hrs, a bit shorter than the run above with 8 threads.
-cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
-display(plot_all_outcomes(cat_RunOutcomes))
-savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
-savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
-most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
-display(plot_common_outcomes(most_common_outcomes))
-savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
-savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
 
 RunName = "JL_Fig6(1,4)"
 RunOutcomes = run_HZAM(RunName, 0.75, 1.05, 1:25)
 # started about 8:30pm 19July2021; finished 11:35pm
-cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
-display(plot_all_outcomes(cat_RunOutcomes))
-savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
-savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
-most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
-display(plot_common_outcomes(most_common_outcomes))
-savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
-savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
 
 RunName = "JL_Fig6(2,1)"
 RunOutcomes = run_HZAM(RunName, 0.0, 2.6, 1:25)
 # started around 6:30am 20July2021; finished 10:45am
-cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
-display(plot_all_outcomes(cat_RunOutcomes))
-savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
-savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
-most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
-display(plot_common_outcomes(most_common_outcomes))
-savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
-savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
 
 RunName = "JL_Fig6(2,2)"
 RunOutcomes = run_HZAM(RunName, 0.25, 2.6, 1:25)
 # started 12:30pm; finished 4:52pm
-cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
-display(plot_all_outcomes(cat_RunOutcomes))
-savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
-savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
-most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
-display(plot_common_outcomes(most_common_outcomes))
-savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
-savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
 
 RunName = "JL_Fig6(2,3)"
 RunOutcomes = run_HZAM(RunName, 0.5, 2.6, 1:25)
 # started 6:08pm 20July2021; finished 10:37pm
-cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
-display(plot_all_outcomes(cat_RunOutcomes))
-savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
-savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
-most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
-display(plot_common_outcomes(most_common_outcomes))
-savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
-savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
 
 RunName = "JL_Fig6(2,4)"
 RunOutcomes = run_HZAM(RunName, 0.75, 2.6, 1:25)
 # started about 10:45pm; finished 2:53am 21July2021
-cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
-display(plot_all_outcomes(cat_RunOutcomes))
-savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
-savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
-most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
-display(plot_common_outcomes(most_common_outcomes))
-savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
-savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
 
 # Will explore changing number of gens, to see if different
-# Also, moving @threads out one loop to w_hyb_set loop 
 
 RunName = "JL_fig3b2000gen"
 RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25,
     1000,2000)
 # started about 6:30am 21July2021; finished 12:47pm
-cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
-display(plot_all_outcomes(cat_RunOutcomes))
-savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
-savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
-most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
-display(plot_common_outcomes(most_common_outcomes))
-savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
-savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
-
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
 
 RunName = "JL_fig3b500gen"
 RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25,
     1000,500)
 # started about 8:15pm; finished 9:43pm
-cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
-display(plot_all_outcomes(cat_RunOutcomes))
-savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
-savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
-most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
-display(plot_common_outcomes(most_common_outcomes))
-savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
-savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
 
 RunName = "JL_fig3b250gen"
 RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25,
     1000, 250)
 # started 5:10pm; finished 5:56pm 22July2021
-cat_RunOutcomes = convert_to_cat_array(RunOutcomes)
-display(plot_all_outcomes(cat_RunOutcomes))
-savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.png"))
-savefig(string(ResultsFolder,"/",RunName,"_AllOutcomes.pdf"))
-most_common_outcomes = get_most_common_outcomes(cat_RunOutcomes)
-display(plot_common_outcomes(most_common_outcomes))
-savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.png"))
-savefig(string(ResultsFolder,"/",RunName,"_MostCommonOutcomes.pdf"))
+make_and_save_figs(ResultsFolder, RunName, RunOutcomes)
 
 RunName = "JL_fig3b125gen"
 RunOutcomes = run_HZAM(RunName, 1.0, 1.05, 1:25,
@@ -956,12 +815,3 @@ epistasis_fitnesses = 1 .- (1 - w_hyb) .* (4 .* survival_HI .* (1 .- survival_HI
 using Plots
 display(plot(survival_HI, epistasis_fitnesses, ylims = (0,1)))
 savefig("plot.pdf")
-
-
-#    function run_HZAM(set_name::String, ecolDiff, intrinsic_R, replications;  # the semicolon makes the following optional keyword arguments 
-#        K_total::Int = 1000, max_generations::Int = 1000, 
-#        total_loci::Int = 6, female_mating_trait_loci = 1:3, male_mating_trait_loci = 1:3,
-#        competition_trait_loci = 1:3, hybrid_survival_loci = 1:3, neutral_loci = 4:6,
-#        survival_fitness_method = "epistasis")
-
-
